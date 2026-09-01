@@ -1,0 +1,144 @@
+<html>
+<head>
+    <script type="module">
+    // Khởi tạo biến toàn cục để lưu trạng thái Tab (0: Túi, 1: Kho)
+    window.mafiaInvTab = window.mafiaInvTab || 0;
+    
+    window.toggleMafiaTab = function(dir) {
+        window.mafiaInvTab = window.mafiaInvTab === 0 ? 1 : 0;
+        // Kích hoạt cập nhật bảng ngay lập tức
+        if (window.forceMafiaUpdate) window.forceMafiaUpdate();
+    };
+
+    async function initMafiaBoard() {
+        if (typeof waitGlobalInitialized === 'function') await waitGlobalInitialized('Mvu');
+
+        window.forceMafiaUpdate = function updateBoard() {
+            const boards = document.querySelectorAll('.mafia-board');
+            if (boards.length === 0) return;
+            const board = boards[boards.length - 1]; 
+
+            let vars = {};
+            try {
+                let raw = null;
+                if (typeof extension_settings !== 'undefined' && extension_settings.variables) {
+                    raw = extension_settings.variables.stat_data;
+                } else if (typeof window.getAllVariables === 'function') {
+                    raw = window.getAllVariables().stat_data;
+                }
+                if (typeof raw === 'string' && raw.trim() !== '') vars = JSON.parse(raw);
+                else if (typeof raw === 'object' && raw !== null) vars = raw;
+            } catch(e) { console.error("Lỗi đọc stat_data:", e); }
+
+            const player = vars?.Người_Chơi || {};
+            const world = vars?.Thế_Giới || {};
+            const setTxt = (cls, txt) => { const el = board.querySelector(cls); if(el) el.textContent = txt; };
+
+            let userName = player.Tên || 'Kẻ Vô Danh';
+            if (userName === '{{user}}') userName = window.name2 || 'Kẻ Vô Danh';
+
+            setTxt('.ui-name', userName);
+            setTxt('.ui-rank', player.Cấp_Bậc || 'Cấp 0 - Kẻ Ngoài Lề');
+            setTxt('.ui-family', player.Gia_Tộc_Phục_Vụ || 'Chưa rõ');
+            setTxt('.ui-clean-money', '$' + (player.Tiền_Sạch || 0).toLocaleString());
+            setTxt('.ui-dirty-money', '$' + (player.Tiền_Bẩn || 0).toLocaleString());
+            setTxt('.ui-kills', player.Mạng_Người_Đã_Giết || 0);
+            setTxt('.ui-injuries', player.Số_Lần_Bị_Thương_Nặng || 0);
+            setTxt('.ui-time', world.Thời_Gian || 'Đêm');
+            setTxt('.ui-status', player.Trạng_Thái || 'Khỏe mạnh');
+            setTxt('.ui-wounds', player.Vết_Thương || 'Không có');
+            
+            // XỬ LÝ TAB KHO VŨ KHÍ
+            const tabTitle = board.querySelector('.ui-tab-title');
+            const weaponList = board.querySelector('.ui-weapon-list');
+            const equipped = player.Vũ_Khí_Đang_Trang_Bị || 'Tay không';
+            
+            let currentItems = [];
+            if (window.mafiaInvTab === 0) {
+                if(tabTitle) tabTitle.textContent = "TÚI ĐỒ (TRÊN NGƯỜI)";
+                currentItems = player.Túi_Đồ_Trên_Người || ['Tay không'];
+            } else {
+                if(tabTitle) tabTitle.textContent = "KHO LƯU TRỮ (Ở NHÀ)";
+                currentItems = player.Kho_Lưu_Trữ || [];
+            }
+
+            if (weaponList) {
+                if (currentItems.length === 0) {
+                    weaponList.innerHTML = `<span style="color:#5c3a21; font-style:italic;">Trống rỗng...</span>`;
+                } else {
+                    weaponList.innerHTML = currentItems.map(w => {
+                        const isEquipped = (w === equipped);
+                        // Tà thuật phát sáng nếu đang trang bị
+                        const style = isEquipped 
+                            ? `background: #3d2c1d; border: 1px solid #ffd700; color: #ffffff; box-shadow: 0 0 12px rgba(255, 215, 0, 0.6); text-shadow: 0 0 5px #ffd700; font-weight: bold;` 
+                            : `background: #1a110b; border: 1px solid #443c30; color: #8c8577;`;
+                        return `<div style="padding: 6px 12px; margin: 4px; border-radius: 3px; font-family: 'Georgia', serif; font-size: 14px; transition: all 0.3s; ${style}">${w}</div>`;
+                    }).join('');
+                }
+            }
+
+            // Xử lý thanh Tín Nhiệm
+            const trust = player.Tín_Nhiệm || 0;
+            const maxTrust = 1000;
+            const percentage = Math.min((Math.max(trust, 0) / maxTrust) * 100, 100);
+            const trustBar = board.querySelector('.ui-trust-bar-fill');
+            const trustText = board.querySelector('.ui-trust-text');
+            if (trustBar) trustBar.style.width = percentage + '%';
+            if (trustText) trustText.textContent = trust + ' / ' + maxTrust;
+        }
+
+        if (window.mafiaInterval) clearInterval(window.mafiaInterval);
+        window.forceMafiaUpdate();
+        window.mafiaInterval = setInterval(window.forceMafiaUpdate, 3000);
+    }
+    setTimeout(initMafiaBoard, 100);
+    </script>
+</head>
+<body>
+<div class="mafia-board" style="background: linear-gradient(180deg, #181715 0%, #0c0b0a 100%); border: 2px solid #b89947; padding: 25px; font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif; color: #dcd3b6; max-width: 700px; margin: 15px auto; box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.9), inset 0px 0px 15px rgba(184, 153, 71, 0.15); border-radius: 3px; position: relative;">
+    
+    <div style="text-align: center; border-bottom: 2px solid #7a0000; padding-bottom: 15px; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 28px; letter-spacing: 4px; color: #b89947; text-transform: uppercase; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">COSA NOSTRA</h2>
+        <div style="font-size: 15px; margin-top: 6px; color: #8c8577; font-style: italic;">Gia Tộc: <span class="ui-family" style="color: #dcd3b6; font-weight: bold; font-style: normal;"></span> | Thời gian: <span class="ui-time" style="color: #c42121; font-weight: bold; font-style: normal;"></span></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 16px; margin-bottom: 15px; line-height: 1.5;">
+        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Tên: </span><span class="ui-name" style="color: #fff; font-weight: bold;"></span></div>
+        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Tiền Sạch: </span><span class="ui-clean-money" style="color: #4caf50; font-weight: bold;"></span></div>
+        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Mạng Đã Giết: </span><span class="ui-kills" style="color: #e53935; font-weight: bold;"></span></div>
+        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Tiền Bẩn: </span><span class="ui-dirty-money" style="color: #8b0000; font-weight: bold;"></span></div>
+        <div style="grid-column: span 2; border-top: 1px dashed #443c30; padding-top: 8px;"><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Thương Nặng (Trừ Tín Nhiệm): </span><span class="ui-injuries" style="color: #ff4d4d; font-weight: bold;"></span> lần</div>
+    </div>
+    
+    <!-- KHU VỰC THƯƠNG TÍCH -->
+    <div style="background: rgba(139, 0, 0, 0.1); border: 1px dashed #8b0000; padding: 12px; border-radius: 3px; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between;">
+            <div><span style="color: #e53935; font-size: 14px; text-transform: uppercase; font-weight: bold;">Trạng Thái: </span><span class="ui-status" style="color: #fff;"></span></div>
+            <div><span style="color: #e53935; font-size: 14px; text-transform: uppercase; font-weight: bold;">Vết Thương: </span><span class="ui-wounds" style="color: #ff9800; font-style: italic;"></span></div>
+        </div>
+    </div>
+
+    <!-- KHU VỰC KHO VŨ KHÍ CÓ NÚT CHUYỂN TAB -->
+    <div style="background: #11100f; border: 1px solid #332d24; padding: 15px; border-radius: 2px; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #443c30; padding-bottom: 8px; margin-bottom: 12px;">
+            <button onclick="window.toggleMafiaTab()" style="background: #2a1a10; border: 1px solid #b89947; color: #b89947; cursor: pointer; padding: 2px 10px; font-weight: bold;">&#10094;</button>
+            <span class="ui-tab-title" style="color: #b89947; font-size: 15px; font-weight: bold; letter-spacing: 1px;">TÚI ĐỒ (TRÊN NGƯỜI)</span>
+            <button onclick="window.toggleMafiaTab()" style="background: #2a1a10; border: 1px solid #b89947; color: #b89947; cursor: pointer; padding: 2px 10px; font-weight: bold;">&#10095;</button>
+        </div>
+        <div class="ui-weapon-list" style="display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px; align-items: center; justify-content: center;"></div>
+    </div>
+
+    <!-- THANH TÍN NHIỆM -->
+    <div style="background: #11100f; border: 1px solid #332d24; padding: 18px; border-radius: 2px; box-shadow: inset 0px 0px 10px rgba(0,0,0,0.8);">
+        <div style="text-align: center; font-size: 19px; font-weight: bold; color: #c42121; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;" class="ui-rank">Cấp 0 - Kẻ Ngoài Lề</div>
+        <div style="font-size: 13px; color: #8c8577; margin-bottom: 8px; display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: 1px;">
+            <span>Tín Nhiệm Băng Đảng</span>
+            <span class="ui-trust-text" style="color: #b89947; font-weight: bold;">0 / 1000</span>
+        </div>
+        <div style="width: 100%; background-color: #000; border: 1px solid #443c30; height: 10px; overflow: hidden;">
+            <div class="ui-trust-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #7a0000, #c42121); transition: width 0.5s ease-in-out;"></div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
