@@ -1,9 +1,7 @@
 <html>
 <head>
     <script type="module">
-    // Khởi tạo biến toàn cục để lưu trạng thái Tab (0: Túi, 1: Kho)
     window.mafiaInvTab = window.mafiaInvTab || 0;
-    
     window.toggleMafiaTab = function(dir) {
         window.mafiaInvTab = window.mafiaInvTab === 0 ? 1 : 0;
         if (window.forceMafiaUpdate) window.forceMafiaUpdate();
@@ -20,11 +18,8 @@
             let vars = {};
             try {
                 let raw = null;
-                if (typeof extension_settings !== 'undefined' && extension_settings.variables) {
-                    raw = extension_settings.variables.stat_data;
-                } else if (typeof window.getAllVariables === 'function') {
-                    raw = window.getAllVariables().stat_data;
-                }
+                if (typeof extension_settings !== 'undefined' && extension_settings.variables) raw = extension_settings.variables.stat_data;
+                else if (typeof window.getAllVariables === 'function') raw = window.getAllVariables().stat_data;
                 if (typeof raw === 'string' && raw.trim() !== '') vars = JSON.parse(raw);
                 else if (typeof raw === 'object' && raw !== null) vars = raw;
             } catch(e) { console.error("Lỗi đọc stat_data:", e); }
@@ -33,23 +28,10 @@
             const world = vars?.Thế_Giới || {};
             const setTxt = (cls, txt) => { const el = board.querySelector(cls); if(el) el.textContent = txt; };
 
-            // Tín Nhiệm (EXP)
-            const trust = player.Tín_Nhiệm || 0;
-            const maxTrust = 1000;
-            const percentage = Math.min((Math.max(trust, 0) / maxTrust) * 100, 100);
-            
-            // Tự động tính Danh Hiệu (Rank) dựa trên Lorebook
-            let rankName = "Cấp 0 - Kẻ Ngoài Lề";
-            if (trust >= 1000) rankName = "Cấp 5 - Đấng Tối Cao (Boss)";
-            else if (trust >= 900) rankName = "Cấp 4 - Cận Vệ Hoàng Gia";
-            else if (trust >= 600) rankName = "Cấp 3 - Đội Trưởng (Capo)";
-            else if (trust >= 300) rankName = "Cấp 2 - Binh Lính Chính Thức";
-            else if (trust >= 100) rankName = "Cấp 1 - Cộng Tác Viên";
+            let userName = player.Tên || 'Kẻ Vô Danh';
+            if (userName === '{{user}}') userName = window.name2 || 'Kẻ Vô Danh';
 
-            // Ưu tiên lấy từ MVU nếu có, không thì dùng rank tự tính
-            const finalRank = player.Cấp_Bậc || rankName;
-
-            setTxt('.ui-rank', finalRank);
+            setTxt('.ui-name', userName);
             setTxt('.ui-family', player.Gia_Tộc_Phục_Vụ || 'Chưa rõ');
             setTxt('.ui-clean-money', '$' + (player.Tiền_Sạch || 0).toLocaleString());
             setTxt('.ui-dirty-money', '$' + (player.Tiền_Bẩn || 0).toLocaleString());
@@ -58,25 +40,19 @@
             setTxt('.ui-time', world.Thời_Gian || 'Đêm');
             setTxt('.ui-status', player.Trạng_Thái || 'Khỏe mạnh');
             setTxt('.ui-wounds', player.Vết_Thương || 'Không có');
+            setTxt('.ui-mission', player.Nhiệm_Vụ_Hiện_Tại || 'Không có'); // LỖ NHIỆM VỤ MỚI
             
             // XỬ LÝ TAB KHO VŨ KHÍ
             const tabTitle = board.querySelector('.ui-tab-title');
             const weaponList = board.querySelector('.ui-weapon-list');
             const equipped = player.Vũ_Khí_Đang_Trang_Bị || 'Tay không';
             
-            let currentItems = [];
-            if (window.mafiaInvTab === 0) {
-                if(tabTitle) tabTitle.textContent = "TÚI ĐỒ (TRÊN NGƯỜI)";
-                currentItems = player.Túi_Đồ_Trên_Người || ['Tay không'];
-            } else {
-                if(tabTitle) tabTitle.textContent = "KHO LƯU TRỮ (Ở NHÀ)";
-                currentItems = player.Kho_Lưu_Trữ || [];
-            }
+            let currentItems = window.mafiaInvTab === 0 ? (player.Túi_Đồ_Trên_Người || ['Tay không']) : (player.Kho_Lưu_Trữ || []);
+            if(tabTitle) tabTitle.textContent = window.mafiaInvTab === 0 ? "TÚI ĐỒ (TRÊN NGƯỜI)" : "KHO LƯU TRỮ (Ở NHÀ)";
 
             if (weaponList) {
-                if (currentItems.length === 0) {
-                    weaponList.innerHTML = `<span style="color:#5c3a21; font-style:italic;">Trống rỗng...</span>`;
-                } else {
+                if (currentItems.length === 0) weaponList.innerHTML = `<span style="color:#5c3a21; font-style:italic;">Trống rỗng...</span>`;
+                else {
                     weaponList.innerHTML = currentItems.map(w => {
                         const isEquipped = (w === equipped);
                         const style = isEquipped 
@@ -88,11 +64,21 @@
             }
             setTxt('.ui-equipped-weapon', equipped);
 
-            // Cập nhật thanh Progress Bar
+            // TÍN NHIỆM & DANH HIỆU
+            const trust = player.Tín_Nhiệm || 0;
+            let rankName = "Cấp 0 - Kẻ Ngoài Lề";
+            if (trust >= 1000) rankName = "Cấp 5 - Đấng Tối Cao (Boss)";
+            else if (trust >= 900) rankName = "Cấp 4 - Cận Vệ Hoàng Gia";
+            else if (trust >= 600) rankName = "Cấp 3 - Đội Trưởng (Capo)";
+            else if (trust >= 300) rankName = "Cấp 2 - Binh Lính Chính Thức";
+            else if (trust >= 100) rankName = "Cấp 1 - Cộng Tác Viên";
+            setTxt('.ui-rank', player.Cấp_Bậc || rankName);
+
+            const percentage = Math.min((Math.max(trust, 0) / 1000) * 100, 100);
             const trustBar = board.querySelector('.ui-trust-bar-fill');
             const trustText = board.querySelector('.ui-trust-text');
             if (trustBar) trustBar.style.width = percentage + '%';
-            if (trustText) trustText.textContent = trust + ' / ' + maxTrust;
+            if (trustText) trustText.textContent = trust + ' / 1000';
         }
 
         if (window.mafiaInterval) clearInterval(window.mafiaInterval);
@@ -110,17 +96,23 @@
         <div style="font-size: 15px; margin-top: 6px; color: #8c8577; font-style: italic;">Gia Tộc: <span class="ui-family" style="color: #dcd3b6; font-weight: bold; font-style: normal;"></span> | Thời gian: <span class="ui-time" style="color: #c42121; font-weight: bold; font-style: normal;"></span></div>
     </div>
 
-    <!-- HỒ SƠ & DANH HIỆU -->
+    <!-- HỒ SƠ -->
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 16px; margin-bottom: 15px; line-height: 1.5;">
         <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Tên: </span><span style="color: #fff; font-weight: bold;">{{user}}</span></div>
-        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Danh Hiệu: </span><span class="ui-rank" style="color: #ff4d4d; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);"></span></div>
+        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Danh Hiệu: </span><span class="ui-rank" style="color: #ff4d4d; font-weight: bold;"></span></div>
         <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Tiền Sạch: </span><span class="ui-clean-money" style="color: #4caf50; font-weight: bold;"></span></div>
         <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Tiền Bẩn: </span><span class="ui-dirty-money" style="color: #8b0000; font-weight: bold;"></span></div>
         <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Mạng Đã Giết: </span><span class="ui-kills" style="color: #e53935; font-weight: bold;"></span></div>
-        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Thương Nặng (Trừ Tín Nhiệm): </span><span class="ui-injuries" style="color: #ff4d4d; font-weight: bold;"></span> lần</div>
+        <div><span style="color: #b89947; font-size: 14px; text-transform: uppercase;">Thương Nặng: </span><span class="ui-injuries" style="color: #ff4d4d; font-weight: bold;"></span> lần</div>
     </div>
     
-    <!-- KHU VỰC THƯƠNG TÍCH -->
+    <!-- HỢP ĐỒNG HIỆN TẠI -->
+    <div style="background: rgba(212, 175, 55, 0.05); border: 1px solid #b89947; padding: 12px; border-radius: 3px; margin-bottom: 15px;">
+        <div style="color: #b89947; font-size: 14px; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">📜 Hợp Đồng Hiện Tại:</div>
+        <div class="ui-mission" style="color: #fff; font-size: 15px; font-style: italic;">Không có</div>
+    </div>
+
+    <!-- THƯƠNG TÍCH -->
     <div style="background: rgba(139, 0, 0, 0.1); border: 1px dashed #8b0000; padding: 12px; border-radius: 3px; margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-between;">
             <div><span style="color: #e53935; font-size: 14px; text-transform: uppercase; font-weight: bold;">Trạng Thái: </span><span class="ui-status" style="color: #fff;"></span></div>
@@ -128,7 +120,7 @@
         </div>
     </div>
 
-    <!-- KHU VỰC KHO VŨ KHÍ CÓ NÚT CHUYỂN TAB -->
+    <!-- KHO VŨ KHÍ -->
     <div style="background: #11100f; border: 1px solid #332d24; padding: 15px; border-radius: 2px; margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #443c30; padding-bottom: 8px; margin-bottom: 12px;">
             <button onclick="window.toggleMafiaTab()" style="background: #2a1a10; border: 1px solid #b89947; color: #b89947; cursor: pointer; padding: 2px 10px; font-weight: bold;">&#10094;</button>
@@ -145,7 +137,7 @@
             <span>Tín Nhiệm Băng Đảng (EXP)</span>
             <span class="ui-trust-text" style="color: #b89947; font-weight: bold;">0 / 1000</span>
         </div>
-        <div style="width: 100%; background-color: #000; border: 1px solid #443c30; height: 10px; overflow: hidden; border-radius: 2px;">
+        <div style="width: 100%; background-color: #000; border: 1px solid #443c30; height: 10px; border-radius: 2px;">
             <div class="ui-trust-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #7a0000, #ff3333); transition: width 0.5s ease-in-out;"></div>
         </div>
     </div>
